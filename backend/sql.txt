@@ -1,0 +1,70 @@
+CREATE DATABASE IF NOT EXISTS ai_lesson_preparation;
+
+use ai_lesson_preparation;
+
+CREATE TABLE IF NOT EXISTS user (
+    id BIGINT NOT NULL COMMENT '用户id',
+    username VARCHAR(255) NOT NULL COMMENT '账户',
+    password VARCHAR(255) NOT NULL COMMENT '用户密码密文',
+    phone VARCHAR(20) COMMENT '手机号码',
+    real_name VARCHAR(255) COMMENT '真实名称',
+    nick_name VARCHAR(255) COMMENT '昵称',
+    email VARCHAR(255) COMMENT '邮箱',
+    status TINYINT DEFAULT 1 COMMENT '账户状态(1.正常 2.锁定 )',
+    sex TINYINT COMMENT '性别(1.男 2.女)',
+    deleted TINYINT DEFAULT 1 COMMENT '是否删除(1未删除；0已删除)',
+    create_time DATETIME COMMENT '创建时间',
+    update_time DATETIME COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_username (username),
+    UNIQUE KEY uk_user_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+CREATE TABLE IF NOT EXISTS lesson_plan (
+    id BIGINT NOT NULL COMMENT '教案id',
+    userid BIGINT NOT NULL COMMENT '用户id',
+    title varchar(100) NOT NULL COMMENT '教案名称',
+    content Text NOT NULL COMMENT '教案内容',
+    deleted TINYINT DEFAULT 1 COMMENT '是否删除(1未删除；0已删除)',
+    create_time DATETIME COMMENT '创建时间',
+    update_time DATETIME COMMENT '更新时间',
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户教案表';
+
+
+CREATE TABLE IF NOT EXISTS ppt (
+    id BIGINT NOT NULL COMMENT '主键id',
+    userid BIGINT NOT NULL COMMENT '用户id',
+    cover_img_src varchar(255) COMMENT '封面图',
+    title varchar(100) COMMENT '标题',
+    sub_title varchar(100) COMMENT '副标题',
+    sid varchar(100) COMMENT 'ppt查询id',
+    deleted TINYINT DEFAULT 1 COMMENT '是否删除(1未删除；0已删除)',
+    create_time DATETIME COMMENT '创建时间',
+    update_time DATETIME COMMENT '更新时间',
+    PRIMARY KEY (id)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ppt记录表';
+
+CREATE TABLE IF NOT EXISTS outline(
+    id BIGINT NOT NULL COMMENT '主键id',
+    userid BIGINT NOT NULL COMMENT '用户id',
+    pptid BIGINT COMMENT 'pptId',
+    outline JSON NOT NULL COMMENT '大纲内容',
+    deleted TINYINT DEFAULT 1 COMMENT '是否删除(1未删除；0已删除)',
+    create_time DATETIME COMMENT '创建时间',
+    update_time DATETIME COMMENT '更新时间',
+    PRIMARY KEY (id)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='大纲记录表';
+
+CREATE TABLE IF NOT EXISTS file(
+    id BIGINT NOT NULL COMMENT '主键id',
+    userid BIGINT NOT NULL COMMENT '用户id',
+    title VARCHAR(255) NOT NULL COMMENT '文件名称',
+    url VARCHAR(255) NOT NULL COMMENT '文件地址',
+    deleted TINYINT DEFAULT 1 COMMENT '是否删除(1未删除；0已删除)',
+    create_time DATETIME COMMENT '创建时间',
+    PRIMARY KEY (id)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件表';
+
+INSERT IGNORE INTO user (id, username, password, real_name, nick_name, email, status, deleted, create_time)
+VALUES (10001, 'demo_teacher', '$2a$10$7exF6/xwsz8pp0kJz1J3qOVqoTchsf/E98Q4DKG926wmGQJVAx3D.', '演示教师', 'Demo Teacher', 'demo-teacher@example.com', 1, 1, NOW());

@@ -1,0 +1,41 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+
+    class TextController {
+        +textGen(prompt: String): Result
+        +textGenStream(prompt: String): Flux<Result>
+        +lessonSave(info: HashMap<String, String>): Result
+        +lessonDelete(info: HashMap<String, String>): Result
+        +lessonList(info: HashMap<String, String>): Result<PageResult>
+        +updateLesson(info: HashMap<String, String>): Result
+        +getById(id: String): Result<LessonPlan>
+    }
+    class TextService {
+        +textGen(prompt: String): Result
+        +textGenStream(prompt: String): Flux<Result>
+        +lessonSave(info: HashMap<String, String>): Result
+        +lessonDelete(info: HashMap<String, String>): Result
+        +pageQuery(info: HashMap<String, String>): PageResult
+        +updateLesson(info: HashMap<String, String>): Result
+        +getById(id: String): Result<LessonPlan>
+    }
+    class LessonPlanMapper {
+        +pageQuery(userid: String): Page<LessonPlan>
+    }
+    class LessonPlan {
+        -id: Long
+        -userid: Long
+        -title: String
+        -content: String
+        -deleted: Integer
+        -createTime: Date
+        -updateTime: Date
+    }
+    TextController --> TextService: uses
+    TextService --> LessonPlanMapper: uses
+    LessonPlanMapper --> LessonPlan: maps
+@enduml

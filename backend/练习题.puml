@@ -1,0 +1,31 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+
+
+    class PracticeController {
+        +practiceGenerate(info: HashMap<String, String>): Result
+    }
+    class PracticeService {
+        +practiceGenerate(info: HashMap<String, String>): Result
+        +practiceCall(prompt: String): String
+    }
+    class LessonPlanMapper {
+        +pageQuery(userid: String): Page<LessonPlan>
+    }
+    class LessonPlan {
+        -id: Long
+        -userid: Long
+        -title: String
+        -content: String
+        -deleted: Integer
+        -createTime: Date
+        -updateTime: Date
+    }
+    PracticeController --> PracticeService: uses
+    PracticeService --> LessonPlanMapper: uses
+    LessonPlanMapper --> LessonPlan: maps
+@enduml

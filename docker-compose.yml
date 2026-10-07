@@ -1,0 +1,87 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ai_lesson_preparation
+      MYSQL_ROOT_PASSWORD: ${AI_DB_PASSWORD:-development-password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/sql.txt:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${AI_DB_PASSWORD:-development-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ai_knowledge
+      POSTGRES_USER: ai
+      POSTGRES_PASSWORD: ${AI_VECTOR_DB_PASSWORD:-development-password}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai -d ai_knowledge"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  ai-service:
+    build: ./ai-service
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      AI_ENVIRONMENT: production
+      AI_API_KEY: ${DASHSCOPE_API_KEY:-}
+      AI_DEMO_MODE: ${AI_DEMO_MODE:-true}
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:-development-only}
+      AI_MODEL_BASE_URL: ${AI_MODEL_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-qwen-plus}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-text-embedding-v3}
+      AI_RETRIEVAL_MIN_SCORE: ${AI_RETRIEVAL_MIN_SCORE:-0.15}
+      AI_RAG_BACKEND: postgres
+      AI_DATABASE_URL: postgresql://ai:${AI_VECTOR_DB_PASSWORD:-development-password}@postgres:5432/ai_knowledge
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backend:
+    build: ./backend
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      ai-service: { condition: service_healthy }
+    environment:
+      AI_DB_URL: jdbc:mysql://mysql:3306/ai_lesson_preparation?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      AI_DB_USERNAME: root
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:-development-password}
+      AI_REDIS_HOST: redis
+      AI_JWT_SECRET: ${AI_JWT_SECRET:-replace-this-before-production}
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_INTERNAL_API_KEY: ${AI_INTERNAL_API_KEY:-development-only}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      AI_TEXT_APP_ID: ${AI_TEXT_APP_ID:-}
+      AI_PRACTICE_APP_ID: ${AI_PRACTICE_APP_ID:-}
+      AI_ANALYZE_APP_ID: ${AI_ANALYZE_APP_ID:-}
+      AI_PPT_APP_ID: ${AI_PPT_APP_ID:-}
+      AI_PPT_API_SECRET: ${AI_PPT_API_SECRET:-}
+    ports: ["8080:8080"]
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["3000:80"]
+volumes:
+  mysql_data:
+  pg_data:
+  redis_data:

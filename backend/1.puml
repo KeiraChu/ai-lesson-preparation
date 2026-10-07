@@ -1,0 +1,44 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+    participant User #white
+    participant App #white
+    participant Controller #white
+    participant Service #white
+    participant Mapper #white
+    participant Database #white
+
+    User->>App: 打开应用，点击“进入备课”
+    App->>Controller: 触发进入备课请求
+    Controller->>Service: 调用备课服务
+    Service->>Mapper: 获取基础数据
+    Mapper->>Database: 查询数据
+    Database-->>Mapper: 返回数据
+    Mapper-->>Service: 传递数据
+    Service-->>Controller: 返回备课结果
+    Controller-->>App: 展示备课界面
+
+    User->>App: 点击“智能助手”，输入提示词
+    App->>Controller: 传递提示词
+    Controller->>Service: 调用生成教案服务
+    Service->>Mapper: 处理教案生成数据
+    Mapper->>Database: 存储/操作教案数据
+    Database-->>Mapper: 返回操作结果
+    Mapper-->>Service: 传递结果
+    Service-->>Controller: 返回生成的教案
+    Controller-->>App: 显示教案
+
+    User->>App: 点击“保存”
+    App->>Controller: 触发保存请求
+    Controller->>Service: 调用保存服务
+    Service->>Mapper: 保存教案到数据库
+    Mapper->>Database: 插入/更新教案数据
+    Database-->>Mapper: 返回保存结果
+    Mapper-->>Service: 传递结果
+    Service-->>Controller: 返回保存状态
+    Controller-->>App: 提示保存成功
+
+    @enduml

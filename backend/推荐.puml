@@ -1,0 +1,41 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+
+    class SelectorController {
+        +selectStudentByID(studentId: String): Student
+        +selectStudentsByName(name: String, classId: String): List<Student>
+    }
+    class SelectorService {
+        +selectStudentByID(studentId: String): Student
+        +selectStudentsByName(name: String, classId: String): List<Student>
+        +searchStudents(name: String, classId: String): List<Student>
+    }
+    class StudentMapper {
+        +selectStudentByID(studentId: String): Student
+        +selectStudentsByName(name: String, classId: String): List<Student>
+    }
+    class Student {
+        -studentId: String
+        -studentName: String
+        -classId: String
+        -scores: List<StudentScore>
+        -taskCompletionRecords: List<TaskCompletionRecord>
+        -learningRecords: List<LearningRecord>
+    }
+
+    class RecommendationService {
+        +recommendation(student: Student): Map<String, String>
+    }
+
+
+    SelectorController --> SelectorService: uses
+    SelectorService --> StudentMapper: uses
+    StudentMapper --> Student: maps
+    RecommendationService --> Student: uses
+
+
+@enduml

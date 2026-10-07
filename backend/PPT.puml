@@ -1,0 +1,53 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+
+    class PPTController {
+        +getTemplate(info: HashMap<String, String>): Result
+        +genOutline(info: HashMap<String, String>): Result
+        +genPPT(pptVo: PPTVo): Result
+        +getPPTBySid(sid: String): Result
+    }
+    class PPTService {
+        +getTemplate(info: HashMap<String, String>): Result
+        +genOutline(info: HashMap<String, String>): Result
+        +genPPT(pptVo: PPTVo): Result
+        +getPPTBySid(sid: String): Result
+    }
+    class PPTMapper {
+    }
+    class PPTVo {
+        -outline: OutlineVo
+        -language: String
+        -templateId: String
+        -query: String
+        -id: Long
+    }
+    class Template {
+        -templateIndexId: String
+        -pageCount: Integer
+        -type: String
+        -color: String
+        -industry: String
+        -style: String
+        -detailImage: DetailImage
+        -payType: String
+    }
+    class Outline {
+        -id: Long
+        -userid: Long
+        -pptid: Long
+        -outline: String
+        -deleted: Integer
+        -createTime: Date
+        -updateTime: Date
+    }
+    PPTController --> PPTService: uses
+    PPTService --> PPTMapper: uses
+    PPTService --> PPTVo: uses
+    PPTService --> Template: uses
+    PPTService --> Outline: uses
+@enduml

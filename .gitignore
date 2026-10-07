@@ -1,0 +1,16 @@
+.DS_Store
+.idea/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+target/
+uploads/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.coverage

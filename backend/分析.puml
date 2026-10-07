@@ -1,0 +1,81 @@
+@startuml
+skinparam class {
+	BackgroundColor White
+	ArrowColor black
+	BorderColor black
+}
+
+    class ScoreController {
+        +importStudentScoreFile(file: File): Result<String>
+        +validateScoreData(data: List<Map<String, Object>>): List<String>
+    }
+    class ScoreService {
+        +importStudentScoreFile(file: File): String
+        +mapScoreFields(data: List<Map<String, Object>>): List<StudentScore>
+        +saveScoreDataToDB(scores: List<StudentScore>): void
+    }
+    class ScoreMapper {
+        +insertStudentScores(scores: List<StudentScore>): void
+    }
+    class StudentScore {
+        -studentId: String
+        -studentName: String
+        -courseName: String
+        -score: double
+        -examDate: Date
+    }
+    class AbilityService {
+        +analyzeLearningAbility(studentScores: List<StudentScore>): Map<String, String>
+        +buildAnalysisModel(scores: List<StudentScore>): LearningAbilityModel
+        +evaluateStudentLevel(model: LearningAbilityModel, score: double): String
+    }
+    class LearningAbilityModel {
+        -knowledgeMasteryWeight: double
+        -learningEfficiencyWeight: double
+        -knowledgeTransferWeight: double
+        -thresholds: Map<String, double>
+    }
+    class FrequencyService {
+        +collectLearningData(): List<LearningRecord>
+        +analyzeLearningDuration(records: List<LearningRecord>): Map<String, Object>
+        +analyzeLearningFrequency(records: List<LearningRecord>): Map<String, Object>
+    }
+    class LearningRecord {
+        -studentId: String
+        -learningDuration: int
+        -accessCount: int
+        -learningDate: Date
+    }
+    class ScoreAnalysisService {
+        +calculateAverageScore(studentScores: List<StudentScore>): double
+        +generateScoreTrendChart(scores: List<StudentScore>): Chart
+        +generateExamScoreBarChart(scores: List<StudentScore>): Chart
+    }
+    class Chart {
+        -type: String
+        -data: List<Map<String, Object>>
+        -labels: List<String>
+    }
+    class TaskAnalysisService {
+        +collectTaskCompletionData(): List<TaskCompletionRecord>
+        +analyzeTaskCompletion(data: List<TaskCompletionRecord>): Map<String, double>
+        +generateTaskCompletionPieChart(data: Map<String, double>): Chart
+    }
+    class TaskRecord {
+        -studentId: String
+        -taskType: String
+        -completionStatus: String
+        -completionDate: Date
+    }
+
+    ScoreController --> ScoreService: uses
+    ScoreService --> ScoreMapper: uses
+    ScoreMapper --> StudentScore: maps
+    AbilityService --> StudentScore: uses
+    AbilityService --> LearningAbilityModel: creates
+    FrequencyService --> LearningRecord: uses
+    ScoreAnalysisService --> StudentScore: uses
+    ScoreAnalysisService --> Chart: creates
+    TaskAnalysisService --> TaskRecord: uses
+    TaskAnalysisService --> Chart: creates
+@enduml
