@@ -18,6 +18,14 @@ class LessonSection(BaseModel):
     citations: list[str] = Field(default_factory=list)
 
 
+class EvidenceReport(BaseModel):
+    evidence_relevance_score: float = Field(ge=0, le=1)
+    citation_coverage: float = Field(ge=0, le=1)
+    cited_sections: int = Field(ge=0)
+    total_sections: int = Field(ge=0)
+    decision: Literal["PASS", "REVIEW"]
+
+
 class LessonPlan(BaseModel):
     title: str
     subject: str
@@ -30,6 +38,7 @@ class LessonPlan(BaseModel):
     homework: list[str]
     citations: list[Citation] = Field(default_factory=list)
     quality_warnings: list[str] = Field(default_factory=list)
+    evidence_report: EvidenceReport | None = None
 
 
 class LessonPlanRequest(BaseModel):
@@ -57,6 +66,14 @@ class IngestRequest(BaseModel):
 
 class IngestResponse(BaseModel):
     document_id: str
+    chunk_count: int
+    deduplicated: bool = False
+
+
+class DocumentSummary(BaseModel):
+    document_id: str
+    document_name: str
+    knowledge_base_id: str
     chunk_count: int
 
 
@@ -93,4 +110,3 @@ class EvaluationResult(BaseModel):
     citation_coverage: float
     groundedness_proxy: float
     latency_ms: float
-

@@ -5,6 +5,7 @@ from app.core.config import Settings
 from app.models.schemas import Citation, LessonPlan, LessonPlanRequest, WorkflowRun, WorkflowStatus
 from app.providers.base import ModelProvider
 from app.rag.store import HybridStore
+from app.services.quality import EvidenceQualityGate
 
 
 class LessonWorkflow:
@@ -12,6 +13,7 @@ class LessonWorkflow:
         self.provider = provider
         self.store = store
         self.settings = settings
+        self.quality_gate = EvidenceQualityGate()
 
     async def run(self, request: LessonPlanRequest) -> WorkflowRun:
         run_id = str(uuid4())
@@ -56,6 +58,15 @@ class LessonWorkflow:
                 section["citations"] = [citation for citation in supplied if citation in valid_chunk_ids]
                 if supplied and len(section["citations"]) != len(supplied):
                     raw["quality_warnings"].append(f"“{section.get('title', '未命名环节')}”包含无效引用，已自动移除。")
+            evidence_report = self.quality_gate.assess(
+                selected=selected,
+                section_citations=[section.get("citations", []) for section in raw.get("sections", [])],
+            )
+            raw["evidence_report"] = evidence_report.model_dump()
+            if evidence_report.decision == "REVIEW":
+                raw["quality_warnings"].append(
+                    "部分教学环节缺少明确引用或证据相关度较低，请教师重点核对。"
+                )
             lesson_plan = LessonPlan.model_validate(raw)
             completed = WorkflowRun(
                 run_id=run_id,

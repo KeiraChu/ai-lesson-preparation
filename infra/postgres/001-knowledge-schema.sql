@@ -6,9 +6,11 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
 CREATE TABLE IF NOT EXISTS knowledge_document (
     id TEXT PRIMARY KEY, knowledge_base_id TEXT NOT NULL REFERENCES knowledge_base(id) ON DELETE CASCADE,
     owner_id BIGINT NOT NULL, name TEXT NOT NULL, object_key TEXT,
-    status TEXT NOT NULL DEFAULT 'PENDING', metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'PENDING', metadata JSONB NOT NULL DEFAULT '{}'::jsonb, content_hash CHAR(64) NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE knowledge_document ADD COLUMN IF NOT EXISTS content_hash CHAR(64) NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_document_owner_kb_hash ON knowledge_document(owner_id, knowledge_base_id, content_hash) WHERE content_hash <> '';
 CREATE TABLE IF NOT EXISTS knowledge_chunk (
     id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
     owner_id BIGINT NOT NULL, content TEXT NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb,

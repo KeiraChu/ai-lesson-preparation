@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -7,7 +8,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadF
 from prometheus_client import Counter, Histogram, make_asgi_app
 
 from app.core.config import Settings, get_settings
-from app.models.schemas import EvaluationCase, EvaluationResult, IngestRequest, IngestResponse, LessonPlanRequest, WorkflowRun, WorkflowStatus
+from app.models.schemas import DocumentSummary, EvaluationCase, EvaluationResult, IngestRequest, IngestResponse, LessonPlanRequest, WorkflowRun, WorkflowStatus
 from app.providers.base import ModelProvider
 from app.providers.demo import DemoProvider
 from app.providers.openai_compatible import OpenAICompatibleProvider
@@ -79,6 +80,10 @@ async def health() -> dict:
 
 @app.post("/v1/knowledge/documents", response_model=IngestResponse, dependencies=[Depends(require_internal_key)])
 async def ingest(request: IngestRequest, model: ModelProvider = Depends(provider)) -> IngestResponse:
+    content_hash = hashlib.sha256(request.text.encode("utf-8")).hexdigest()
+    existing = await store.find_document_by_hash(user_id=request.user_id, knowledge_base_id=request.knowledge_base_id, content_hash=content_hash)
+    if existing:
+        return IngestResponse(document_id=existing[0], chunk_count=existing[1], deduplicated=True)
     metadata = {
         key: value
         for key, value in {
@@ -88,6 +93,7 @@ async def ingest(request: IngestRequest, model: ModelProvider = Depends(provider
         }.items()
         if value
     }
+    metadata["content_hash"] = content_hash
     chunks = chunk_document(
         document_id=request.document_id,
         document_name=request.document_name,
@@ -120,16 +126,34 @@ async def ingest_file(
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     if not text.strip():
         raise HTTPException(status_code=422, detail="document contains no extractable text")
+    content_hash = hashlib.sha256(content).hexdigest()
+    existing = await store.find_document_by_hash(user_id=user_id, knowledge_base_id=knowledge_base_id, content_hash=content_hash)
+    if existing:
+        return IngestResponse(document_id=existing[0], chunk_count=existing[1], deduplicated=True)
     document_id = str(uuid4())
     chunks = chunk_document(
         document_id=document_id,
         document_name=file.filename or document_id,
         text=text,
-        metadata={},
+        metadata={"content_hash": content_hash},
     )
     vectors = await model.embed([chunk.text for chunk in chunks])
     await store.upsert(chunks=chunks, vectors=vectors, user_id=user_id, knowledge_base_id=knowledge_base_id)
     return IngestResponse(document_id=document_id, chunk_count=len(chunks))
+
+
+@app.get("/v1/knowledge/documents", response_model=list[DocumentSummary], dependencies=[Depends(require_internal_key)])
+async def list_documents(user_id: str, knowledge_base_id: str) -> list[DocumentSummary]:
+    rows = await store.list_documents(user_id=user_id, knowledge_base_id=knowledge_base_id)
+    return [DocumentSummary.model_validate(row) for row in rows]
+
+
+@app.delete("/v1/knowledge/documents/{document_id}", dependencies=[Depends(require_internal_key)])
+async def delete_document(document_id: str, user_id: str) -> dict:
+    deleted = await store.delete_document(document_id=document_id, user_id=user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="document not found")
+    return {"deleted": True, "document_id": document_id}
 
 
 @app.post("/v1/workflows/lesson-plan", response_model=WorkflowRun, dependencies=[Depends(require_internal_key)])

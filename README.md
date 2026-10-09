@@ -8,11 +8,12 @@
 
 - 教学知识库：解析 PDF、DOCX、PPTX、XLSX、TXT 和 Markdown，按用户与知识库隔离。
 - RAG：文档切片、Embedding、PostgreSQL/pgvector 向量检索、全文检索与混合排序。
+- 证据质量门：生成后校验引用是否来自本次检索，并按检索置信度与环节引用覆盖率给出 `PASS/REVIEW`，低置信结果必须人工复核。
 - 结构化生成：JSON Schema 约束教案标题、目标、重点难点、教学环节、作业和引用。
 - 可控工作流：检索、生成、质量提示与人工审核分阶段执行，失败状态可追踪。
 - 模型适配：通过 OpenAI-compatible API 接入 Qwen、DeepSeek 等模型，统一超时和重试。
 - 工程治理：JWT 权限隔离、文件校验、Docker Compose、CI、自动化测试和 Prometheus 指标。
-- 质量评测：检索命中、引用覆盖、Groundedness 代理指标、延迟和 Bad Case 回归。
+- 质量评测：端到端执行入库、检索、生成和引用校验，统计检索命中、拒答准确率、引用覆盖与延迟。
 
 ## 系统架构
 
@@ -76,8 +77,9 @@ FastAPI 内部接口：
 
 - `POST /v1/knowledge/files`：解析、切片、向量化并入库。
 - `POST /v1/knowledge/documents`：索引纯文本资料。
+- `GET /v1/knowledge/documents`、`DELETE /v1/knowledge/documents/{id}`：查看和删除知识库文档；重复内容按哈希去重。
 - `POST /v1/workflows/lesson-plan`：执行备课工作流。
-- `POST /v1/evaluations/case`：计算单条离线评测结果。
+- `POST /v1/evaluations/case`：兼容计算单条已保存结果；正式回归使用下方端到端脚本。
 
 生产环境必须设置 `AI_ENVIRONMENT=production` 并配置 `AI_INTERNAL_API_KEY`，禁止将 AI 内部接口直接暴露给公网。
 
@@ -88,7 +90,7 @@ make test
 cd ai-service && PYTHONPATH=. python run_evals.py ../evals/datasets/lesson_plan_cases.jsonl
 ```
 
-评测数据已扩充为 12 条跨学科与 Bad Case 样例。评测口径见 [docs/evaluation.md](docs/evaluation.md)，安全边界见 [docs/security.md](docs/security.md)。
+仓库提供 6 条跨学科与拒答案例。脚本会实际执行完整工作流，不读取预先生成的答案或延迟；演示 Provider 的结果只用于回归，不能代表真实模型质量。分层设计与取舍见 [docs/architecture.md](docs/architecture.md)，评测口径见 [docs/evaluation.md](docs/evaluation.md)，安全边界见 [docs/security.md](docs/security.md)。
 
 ## 项目结构
 

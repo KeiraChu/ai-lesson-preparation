@@ -50,3 +50,5 @@ async def test_workflow_removes_model_invented_citations():
     assert run.status == WorkflowStatus.waiting_for_review
     assert run.lesson_plan.sections[0].citations == ["doc-1:0"]
     assert run.lesson_plan.quality_warnings
+    assert run.lesson_plan.evidence_report.citation_coverage == 1.0
+    assert run.lesson_plan.evidence_report.total_sections == 1

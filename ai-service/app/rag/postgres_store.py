@@ -33,10 +33,10 @@ class PostgresHybridStore:
                 if chunks:
                     first = chunks[0]
                     await connection.execute(
-                        """INSERT INTO knowledge_document(id, knowledge_base_id, owner_id, name, status, metadata)
-                           VALUES($1,$2,$3,$4,'READY',$5::jsonb)
-                           ON CONFLICT(id) DO UPDATE SET status='READY', metadata=EXCLUDED.metadata""",
-                        first.document_id, storage_knowledge_base_id, int(user_id), first.document_name, json.dumps(first.metadata),
+                        """INSERT INTO knowledge_document(id, knowledge_base_id, owner_id, name, status, metadata, content_hash)
+                           VALUES($1,$2,$3,$4,'READY',$5::jsonb,$6)
+                           ON CONFLICT(id) DO UPDATE SET status='READY', metadata=EXCLUDED.metadata, content_hash=EXCLUDED.content_hash""",
+                        first.document_id, storage_knowledge_base_id, int(user_id), first.document_name, json.dumps(first.metadata), first.metadata.get("content_hash", ""),
                     )
                 for chunk, vector in zip(chunks, vectors, strict=True):
                     await connection.execute(
@@ -78,3 +78,31 @@ class PostgresHybridStore:
             json.dumps(run.get("lesson_plan"), ensure_ascii=False) if run.get("lesson_plan") else None,
             run.get("error"),
         )
+
+    async def find_document_by_hash(self, *, user_id: str, knowledge_base_id: str, content_hash: str) -> tuple[str, int] | None:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        row = await self.pool.fetchrow(
+            """SELECT d.id, count(c.id) AS chunk_count FROM knowledge_document d
+               LEFT JOIN knowledge_chunk c ON c.document_id=d.id
+               WHERE d.owner_id=$1 AND d.knowledge_base_id=$2 AND d.content_hash=$3 GROUP BY d.id""",
+            int(user_id), f"{user_id}:{knowledge_base_id}", content_hash,
+        )
+        return (row["id"], row["chunk_count"]) if row else None
+
+    async def list_documents(self, *, user_id: str, knowledge_base_id: str) -> list[dict]:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        rows = await self.pool.fetch(
+            """SELECT d.id, d.name, count(c.id) AS chunk_count FROM knowledge_document d
+               LEFT JOIN knowledge_chunk c ON c.document_id=d.id
+               WHERE d.owner_id=$1 AND d.knowledge_base_id=$2 GROUP BY d.id, d.name ORDER BY max(d.created_at) DESC""",
+            int(user_id), f"{user_id}:{knowledge_base_id}",
+        )
+        return [{"document_id": row["id"], "document_name": row["name"], "knowledge_base_id": knowledge_base_id, "chunk_count": row["chunk_count"]} for row in rows]
+
+    async def delete_document(self, *, document_id: str, user_id: str) -> bool:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        result = await self.pool.execute("DELETE FROM knowledge_document WHERE id=$1 AND owner_id=$2", document_id, int(user_id))
+        return result == "DELETE 1"

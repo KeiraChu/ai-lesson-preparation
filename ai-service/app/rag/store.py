@@ -39,6 +39,30 @@ class HybridStore:
     async def save_workflow(self, *, run: dict, owner_id: str, workflow_input: dict) -> None:
         self._workflow_runs[run["run_id"]] = {"owner_id": owner_id, "input": workflow_input, **run}
 
+    async def find_document_by_hash(self, *, user_id: str, knowledge_base_id: str, content_hash: str) -> tuple[str, int] | None:
+        matching = [chunk_id for chunk_id, chunk in self._chunks.items() if self._owners[chunk_id] == user_id and self._knowledge_bases[chunk_id] == knowledge_base_id and chunk.metadata.get("content_hash") == content_hash]
+        if not matching:
+            return None
+        return self._chunks[matching[0]].document_id, len(matching)
+
+    async def list_documents(self, *, user_id: str, knowledge_base_id: str) -> list[dict]:
+        grouped: dict[str, dict] = {}
+        for chunk_id, chunk in self._chunks.items():
+            if self._owners[chunk_id] != user_id or self._knowledge_bases[chunk_id] != knowledge_base_id:
+                continue
+            item = grouped.setdefault(chunk.document_id, {"document_id": chunk.document_id, "document_name": chunk.document_name, "knowledge_base_id": knowledge_base_id, "chunk_count": 0})
+            item["chunk_count"] += 1
+        return list(grouped.values())
+
+    async def delete_document(self, *, document_id: str, user_id: str) -> bool:
+        targets = [chunk_id for chunk_id, chunk in self._chunks.items() if chunk.document_id == document_id and self._owners[chunk_id] == user_id]
+        for chunk_id in targets:
+            self._chunks.pop(chunk_id, None)
+            self._vectors.pop(chunk_id, None)
+            self._owners.pop(chunk_id, None)
+            self._knowledge_bases.pop(chunk_id, None)
+        return bool(targets)
+
 
 def _tokens(text: str) -> list[str]:
     return re.findall(r"[\u4e00-\u9fff]|[a-zA-Z0-9_]+", text.lower())

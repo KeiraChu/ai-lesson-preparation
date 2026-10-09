@@ -14,3 +14,15 @@ async def test_store_enforces_owner_and_knowledge_base_boundaries():
     assert len(own) == 1
     assert other_user == []
 
+
+@pytest.mark.asyncio
+async def test_document_deduplication_listing_and_deletion():
+    store = HybridStore()
+    chunk = Chunk("doc-1:0", "doc-1", "教材", "一次函数的基本概念", {"content_hash": "abc"})
+    await store.upsert(chunks=[chunk], vectors=[[1.0, 0.0]], user_id="1", knowledge_base_id="kb-1")
+
+    assert await store.find_document_by_hash(user_id="1", knowledge_base_id="kb-1", content_hash="abc") == ("doc-1", 1)
+    documents = await store.list_documents(user_id="1", knowledge_base_id="kb-1")
+    assert documents[0]["document_id"] == "doc-1"
+    assert await store.delete_document(document_id="doc-1", user_id="1") is True
+    assert await store.list_documents(user_id="1", knowledge_base_id="kb-1") == []
