@@ -9,6 +9,7 @@ class DemoProvider(ModelProvider):
     """Deterministic offline provider for interviews and local product demos."""
 
     async def generate_json(self, *, messages: list[dict], schema: dict, model: str | None = None) -> dict:
+        self.record_usage({"input_tokens": 0, "output_tokens": 0, "estimated_cost": 0})
         content = messages[-1]["content"]
         subject = self._field(content, "学科") or "示例学科"
         grade = self._field(content, "年级") or "示例年级"
@@ -38,7 +39,13 @@ class DemoProvider(ModelProvider):
         yield "离线演示模式"
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
+        self.record_usage({"embedding_tokens": 0, "estimated_cost": 0})
         return [self._embedding(text) for text in texts]
+
+    def usage_summary(self) -> dict:
+        summary = super().usage_summary()
+        summary["usage_source"] = "demo_not_billable"
+        return summary
 
     @staticmethod
     def _field(content: str, name: str) -> str:

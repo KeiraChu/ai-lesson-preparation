@@ -63,6 +63,19 @@ class HybridStore:
             self._knowledge_bases.pop(chunk_id, None)
         return bool(targets)
 
+    async def get_document_chunks(self, *, document_id: str, user_id: str) -> list[Chunk]:
+        return [chunk for chunk_id, chunk in self._chunks.items() if chunk.document_id == document_id and self._owners[chunk_id] == user_id]
+
+    async def update_vectors(self, *, chunks: list[Chunk], vectors: list[list[float]], user_id: str) -> None:
+        for chunk, vector in zip(chunks, vectors, strict=True):
+            if self._owners.get(chunk.chunk_id) != user_id:
+                raise PermissionError("document owner mismatch")
+            self._vectors[chunk.chunk_id] = vector
+
+    async def get_workflow(self, *, run_id: str, user_id: str) -> dict | None:
+        run = self._workflow_runs.get(run_id)
+        return run if run and run["owner_id"] == user_id else None
+
 
 def _tokens(text: str) -> list[str]:
     return re.findall(r"[\u4e00-\u9fff]|[a-zA-Z0-9_]+", text.lower())

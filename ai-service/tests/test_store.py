@@ -26,3 +26,12 @@ async def test_document_deduplication_listing_and_deletion():
     assert documents[0]["document_id"] == "doc-1"
     assert await store.delete_document(document_id="doc-1", user_id="1") is True
     assert await store.list_documents(user_id="1", knowledge_base_id="kb-1") == []
+
+
+@pytest.mark.asyncio
+async def test_workflow_status_is_isolated_by_owner():
+    store = HybridStore()
+    await store.save_workflow(run={"run_id": "run-1", "status": "PENDING", "current_step": "QUEUED"}, owner_id="1", workflow_input={})
+
+    assert (await store.get_workflow(run_id="run-1", user_id="1"))["status"] == "PENDING"
+    assert await store.get_workflow(run_id="run-1", user_id="2") is None

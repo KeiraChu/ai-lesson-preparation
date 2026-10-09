@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     retrieval_min_score: float = 0.15
     rag_backend: str = "memory"
     database_url: str = "postgresql://ai:development-password@localhost:5432/ai_knowledge"
+    chat_input_cost_per_million: float = 0.0
+    chat_output_cost_per_million: float = 0.0
+    embedding_cost_per_million: float = 0.0
     model_config = SettingsConfigDict(env_prefix="AI_", env_file=".env", extra="ignore")
 
 

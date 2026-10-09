@@ -46,9 +46,11 @@ async def test_workflow_removes_model_invented_citations():
     store = HybridStore()
     chunk = Chunk("doc-1:0", "doc-1", "教材", "一次函数表示变量之间的线性关系")
     await store.upsert(chunks=[chunk], vectors=[[1.0, 0.0]], user_id="1", knowledge_base_id="default")
-    run = await LessonWorkflow(FakeProvider(), store, Settings(retrieval_min_score=0.0)).run(request())
+    run = await LessonWorkflow(FakeProvider(), store, Settings(retrieval_min_score=0.0)).run(request(), run_id="queued-run")
+    assert run.run_id == "queued-run"
     assert run.status == WorkflowStatus.waiting_for_review
     assert run.lesson_plan.sections[0].citations == ["doc-1:0"]
     assert run.lesson_plan.quality_warnings
     assert run.lesson_plan.evidence_report.citation_coverage == 1.0
     assert run.lesson_plan.evidence_report.total_sections == 1
+    assert set(run.stage_latency_ms) == {"retrieval", "generation", "validation", "total"}

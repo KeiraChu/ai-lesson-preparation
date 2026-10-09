@@ -79,6 +79,8 @@ FastAPI 内部接口：
 - `POST /v1/knowledge/documents`：索引纯文本资料。
 - `GET /v1/knowledge/documents`、`DELETE /v1/knowledge/documents/{id}`：查看和删除知识库文档；重复内容按哈希去重。
 - `POST /v1/workflows/lesson-plan`：执行备课工作流。
+- `POST /v1/workflows/lesson-plan/async`、`GET /v1/workflows/{run_id}`：创建后台任务并查询状态。
+- `POST /v1/knowledge/documents/{id}/reindex`：重新生成指定文档的向量索引。
 - `POST /v1/evaluations/case`：兼容计算单条已保存结果；正式回归使用下方端到端脚本。
 
 生产环境必须设置 `AI_ENVIRONMENT=production` 并配置 `AI_INTERNAL_API_KEY`，禁止将 AI 内部接口直接暴露给公网。
@@ -88,6 +90,7 @@ FastAPI 内部接口：
 ```bash
 make test
 cd ai-service && PYTHONPATH=. python run_evals.py ../evals/datasets/lesson_plan_cases.jsonl
+cd ai-service && PYTHONPATH=. python run_real_model_eval.py  # 配置真实模型后生成报告
 ```
 
 仓库提供 6 条跨学科与拒答案例。脚本会实际执行完整工作流，不读取预先生成的答案或延迟；演示 Provider 的结果只用于回归，不能代表真实模型质量。分层设计与取舍见 [docs/architecture.md](docs/architecture.md)，评测口径见 [docs/evaluation.md](docs/evaluation.md)，安全边界见 [docs/security.md](docs/security.md)。

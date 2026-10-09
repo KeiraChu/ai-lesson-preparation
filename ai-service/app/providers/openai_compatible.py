@@ -47,7 +47,12 @@ class OpenAICompatibleProvider(ModelProvider):
                 },
             },
         )
-        content = response.json()["choices"][0]["message"]["content"]
+        body = response.json()
+        usage = body.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", usage.get("input_tokens", 0))
+        output_tokens = usage.get("completion_tokens", usage.get("output_tokens", 0))
+        self.record_usage({"input_tokens": input_tokens, "output_tokens": output_tokens, "estimated_cost": (input_tokens * self.settings.chat_input_cost_per_million + output_tokens * self.settings.chat_output_cost_per_million) / 1_000_000})
+        content = body["choices"][0]["message"]["content"]
         return json.loads(content)
 
     async def stream_text(self, *, messages: list[dict], model: str | None = None) -> AsyncIterator[str]:
@@ -71,4 +76,8 @@ class OpenAICompatibleProvider(ModelProvider):
         response = await self._post_with_retry(
             "/embeddings", {"model": self.settings.embedding_model, "input": texts}
         )
-        return [item["embedding"] for item in response.json()["data"]]
+        body = response.json()
+        rows = sorted(body["data"], key=lambda item: item.get("index", 0))
+        tokens = body.get("usage", {}).get("total_tokens", body.get("usage", {}).get("prompt_tokens", 0))
+        self.record_usage({"embedding_tokens": tokens, "estimated_cost": tokens * self.settings.embedding_cost_per_million / 1_000_000})
+        return [item["embedding"] for item in rows]

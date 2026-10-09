@@ -6,6 +6,18 @@ from pgvector.asyncpg import register_vector
 from app.rag.chunking import Chunk
 
 
+def _json_object(value):
+    if value is None:
+        return {}
+    return json.loads(value) if isinstance(value, str) else dict(value)
+
+
+def _json_list(value):
+    if value is None:
+        return []
+    return json.loads(value) if isinstance(value, str) else list(value)
+
+
 class PostgresHybridStore:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
@@ -15,6 +27,11 @@ class PostgresHybridStore:
         async def initialize(connection: asyncpg.Connection) -> None:
             await register_vector(connection)
         self.pool = await asyncpg.create_pool(self.database_url, init=initialize, min_size=1, max_size=8)
+        await self.pool.execute("ALTER TABLE knowledge_document ADD COLUMN IF NOT EXISTS content_hash CHAR(64) NOT NULL DEFAULT ''")
+        await self.pool.execute("ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS embedding_tokens INTEGER NOT NULL DEFAULT 0")
+        await self.pool.execute("ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0")
+        await self.pool.execute("ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS stage_latency JSONB NOT NULL DEFAULT '{}'::jsonb")
+        await self.pool.execute("ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS fallback_reasons JSONB NOT NULL DEFAULT '[]'::jsonb")
 
     async def close(self) -> None:
         if self.pool:
@@ -61,7 +78,7 @@ class PostgresHybridStore:
             query_vector, query, int(user_id), storage_knowledge_base_ids, top_k,
         )
         return [
-            (Chunk(row["id"], row["document_id"], row["document_name"], row["content"], dict(row["metadata"])), float(row["score"]))
+            (Chunk(row["id"], row["document_id"], row["document_name"], row["content"], _json_object(row["metadata"])), float(row["score"]))
             for row in rows
         ]
 
@@ -69,14 +86,28 @@ class PostgresHybridStore:
         if not self.pool:
             raise RuntimeError("PostgreSQL store is not connected")
         await self.pool.execute(
-            """INSERT INTO ai_workflow_run(id, owner_id, workflow_type, status, current_step, input, output, error)
-               VALUES($1::uuid,$2,'LESSON_PLAN',$3,$4,$5::jsonb,$6::jsonb,$7)
+            """INSERT INTO ai_workflow_run(id, owner_id, workflow_type, status, current_step, input, output, error,
+                                            model_name, input_tokens, output_tokens, embedding_tokens, estimated_cost,
+                                            latency_ms, stage_latency, fallback_reasons)
+               VALUES($1::uuid,$2,'LESSON_PLAN',$3,$4,$5::jsonb,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb)
                ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status, current_step=EXCLUDED.current_step,
-                   output=EXCLUDED.output, error=EXCLUDED.error, updated_at=now()""",
+                   output=EXCLUDED.output, error=EXCLUDED.error, model_name=EXCLUDED.model_name,
+                   input_tokens=EXCLUDED.input_tokens, output_tokens=EXCLUDED.output_tokens,
+                   embedding_tokens=EXCLUDED.embedding_tokens, estimated_cost=EXCLUDED.estimated_cost,
+                   latency_ms=EXCLUDED.latency_ms, stage_latency=EXCLUDED.stage_latency,
+                   fallback_reasons=EXCLUDED.fallback_reasons, updated_at=now()""",
             run["run_id"], int(owner_id), run["status"], run["current_step"],
             json.dumps(workflow_input, ensure_ascii=False),
             json.dumps(run.get("lesson_plan"), ensure_ascii=False) if run.get("lesson_plan") else None,
             run.get("error"),
+            workflow_input.get("model"),
+            int(run.get("model_usage", {}).get("input_tokens", 0)),
+            int(run.get("model_usage", {}).get("output_tokens", 0)),
+            int(run.get("model_usage", {}).get("embedding_tokens", 0)),
+            float(run.get("model_usage", {}).get("estimated_cost", 0)),
+            int(run.get("stage_latency_ms", {}).get("total", 0)),
+            json.dumps(run.get("stage_latency_ms", {})),
+            json.dumps(run.get("fallback_reasons", [])),
         )
 
     async def find_document_by_hash(self, *, user_id: str, knowledge_base_id: str, content_hash: str) -> tuple[str, int] | None:
@@ -106,3 +137,43 @@ class PostgresHybridStore:
             raise RuntimeError("PostgreSQL store is not connected")
         result = await self.pool.execute("DELETE FROM knowledge_document WHERE id=$1 AND owner_id=$2", document_id, int(user_id))
         return result == "DELETE 1"
+
+    async def get_document_chunks(self, *, document_id: str, user_id: str) -> list[Chunk]:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        rows = await self.pool.fetch(
+            """SELECT c.id, c.document_id, d.name AS document_name, c.content, c.metadata
+               FROM knowledge_chunk c JOIN knowledge_document d ON d.id=c.document_id
+               WHERE c.document_id=$1 AND c.owner_id=$2 ORDER BY c.id""",
+            document_id, int(user_id),
+        )
+        return [Chunk(row["id"], row["document_id"], row["document_name"], row["content"], _json_object(row["metadata"])) for row in rows]
+
+    async def update_vectors(self, *, chunks: list[Chunk], vectors: list[list[float]], user_id: str) -> None:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.executemany(
+                    "UPDATE knowledge_chunk SET embedding=$1 WHERE id=$2 AND owner_id=$3",
+                    [(vector, chunk.chunk_id, int(user_id)) for chunk, vector in zip(chunks, vectors, strict=True)],
+                )
+
+    async def get_workflow(self, *, run_id: str, user_id: str) -> dict | None:
+        if not self.pool:
+            raise RuntimeError("PostgreSQL store is not connected")
+        row = await self.pool.fetchrow(
+            """SELECT id, status, current_step, output, error, stage_latency, fallback_reasons,
+                      model_name, input_tokens, output_tokens, embedding_tokens, estimated_cost
+               FROM ai_workflow_run WHERE id=$1::uuid AND owner_id=$2""",
+            run_id, int(user_id),
+        )
+        if not row:
+            return None
+        return {
+            "run_id": str(row["id"]), "status": row["status"], "current_step": row["current_step"],
+            "lesson_plan": _json_object(row["output"]) if row["output"] else None, "error": row["error"],
+            "stage_latency_ms": _json_object(row["stage_latency"]),
+            "model_usage": {"model": row["model_name"] or "", "input_tokens": row["input_tokens"], "output_tokens": row["output_tokens"], "embedding_tokens": row["embedding_tokens"], "estimated_cost": float(row["estimated_cost"] or 0), "currency": "CNY"},
+            "fallback_reasons": _json_list(row["fallback_reasons"]),
+        }

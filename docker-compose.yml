@@ -47,6 +47,9 @@ services:
       AI_MODEL_BASE_URL: ${AI_MODEL_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       AI_CHAT_MODEL: ${AI_CHAT_MODEL:-qwen-plus}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-text-embedding-v3}
+      AI_CHAT_INPUT_COST_PER_MILLION: ${AI_CHAT_INPUT_COST_PER_MILLION:-0}
+      AI_CHAT_OUTPUT_COST_PER_MILLION: ${AI_CHAT_OUTPUT_COST_PER_MILLION:-0}
+      AI_EMBEDDING_COST_PER_MILLION: ${AI_EMBEDDING_COST_PER_MILLION:-0}
       AI_RETRIEVAL_MIN_SCORE: ${AI_RETRIEVAL_MIN_SCORE:-0.15}
       AI_RAG_BACKEND: postgres
       AI_DATABASE_URL: postgresql://ai:${AI_VECTOR_DB_PASSWORD:-development-password}@postgres:5432/ai_knowledge

@@ -4,7 +4,7 @@ import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from prometheus_client import Counter, Histogram, make_asgi_app
 
 from app.core.config import Settings, get_settings
@@ -156,6 +156,16 @@ async def delete_document(document_id: str, user_id: str) -> dict:
     return {"deleted": True, "document_id": document_id}
 
 
+@app.post("/v1/knowledge/documents/{document_id}/reindex", dependencies=[Depends(require_internal_key)])
+async def reindex_document(document_id: str, user_id: str, model: ModelProvider = Depends(provider)) -> dict:
+    chunks = await store.get_document_chunks(document_id=document_id, user_id=user_id)
+    if not chunks:
+        raise HTTPException(status_code=404, detail="document not found")
+    vectors = await model.embed([chunk.text for chunk in chunks])
+    await store.update_vectors(chunks=chunks, vectors=vectors, user_id=user_id)
+    return {"document_id": document_id, "chunk_count": len(chunks), "status": "READY"}
+
+
 @app.post("/v1/workflows/lesson-plan", response_model=WorkflowRun, dependencies=[Depends(require_internal_key)])
 async def lesson_plan(
     request: LessonPlanRequest,
@@ -169,6 +179,32 @@ async def lesson_plan(
     REQUEST_LATENCY.labels("lesson_plan").observe(time.perf_counter() - started)
     logger.info("workflow_complete run_id=%s status=%s", run.run_id, run.status)
     return run
+
+
+async def _run_lesson_plan_task(request: LessonPlanRequest, settings: Settings, model: ModelProvider, run_id: str) -> None:
+    await LessonWorkflow(model, store, settings).run(request, run_id=run_id)
+
+
+@app.post("/v1/workflows/lesson-plan/async", response_model=WorkflowRun, dependencies=[Depends(require_internal_key)])
+async def lesson_plan_async(
+    request: LessonPlanRequest,
+    background_tasks: BackgroundTasks,
+    settings: Settings = Depends(get_settings),
+    model: ModelProvider = Depends(provider),
+) -> WorkflowRun:
+    run_id = str(uuid4())
+    pending = WorkflowRun(run_id=run_id, status=WorkflowStatus.pending, current_step="QUEUED")
+    await store.save_workflow(run=pending.model_dump(mode="json"), owner_id=request.user_id, workflow_input=request.model_dump(mode="json"))
+    background_tasks.add_task(_run_lesson_plan_task, request, settings, model, run_id)
+    return pending
+
+
+@app.get("/v1/workflows/{run_id}", response_model=WorkflowRun, dependencies=[Depends(require_internal_key)])
+async def workflow_status(run_id: str, user_id: str) -> WorkflowRun:
+    run = await store.get_workflow(run_id=run_id, user_id=user_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="workflow not found")
+    return WorkflowRun.model_validate(run)
 
 
 @app.post("/v1/evaluations/case", response_model=EvaluationResult, dependencies=[Depends(require_internal_key)])

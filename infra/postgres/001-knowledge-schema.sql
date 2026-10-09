@@ -23,5 +23,11 @@ CREATE TABLE IF NOT EXISTS ai_workflow_run (
     id UUID PRIMARY KEY, owner_id BIGINT NOT NULL, workflow_type TEXT NOT NULL, status TEXT NOT NULL,
     current_step TEXT, input JSONB NOT NULL, output JSONB, error TEXT, model_name TEXT,
     input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
-    latency_ms INTEGER, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    embedding_tokens INTEGER NOT NULL DEFAULT 0, estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0,
+    latency_ms INTEGER, stage_latency JSONB NOT NULL DEFAULT '{}'::jsonb, fallback_reasons JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS embedding_tokens INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS estimated_cost NUMERIC(12,6) NOT NULL DEFAULT 0;
+ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS stage_latency JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE ai_workflow_run ADD COLUMN IF NOT EXISTS fallback_reasons JSONB NOT NULL DEFAULT '[]'::jsonb;

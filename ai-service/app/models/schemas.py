@@ -91,6 +91,9 @@ class WorkflowRun(BaseModel):
     current_step: str
     lesson_plan: LessonPlan | None = None
     error: str | None = None
+    stage_latency_ms: dict[str, float] = Field(default_factory=dict)
+    model_usage: dict[str, float | int | str] = Field(default_factory=dict)
+    fallback_reasons: list[str] = Field(default_factory=list)
 
 
 class EvaluationCase(BaseModel):

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import Settings
 from app.models.schemas import LessonPlanRequest, WorkflowStatus
+from app.providers.base import ModelProvider
 from app.providers.demo import DemoProvider
 from app.rag.chunking import chunk_document
 from app.rag.store import HybridStore
@@ -29,15 +30,15 @@ class EndToEndCase(BaseModel):
     expect_refusal: bool = False
 
 
-async def evaluate(case: EndToEndCase) -> dict:
-    provider = DemoProvider()
+async def evaluate(case: EndToEndCase, provider: ModelProvider | None = None, settings: Settings | None = None) -> dict:
+    provider = provider or DemoProvider()
     store = HybridStore()
     for document in case.documents:
         chunks = chunk_document(document_id=document.document_id, document_name=document.document_name, text=document.text, metadata={})
         vectors = await provider.embed([chunk.text for chunk in chunks])
         await store.upsert(chunks=chunks, vectors=vectors, user_id=case.request.user_id, knowledge_base_id=document.knowledge_base_id)
     started = time.perf_counter()
-    workflow = await LessonWorkflow(provider, store, Settings(demo_mode=True, retrieval_min_score=0.15)).run(case.request)
+    workflow = await LessonWorkflow(provider, store, settings or Settings(demo_mode=True, retrieval_min_score=0.15)).run(case.request)
     latency_ms = (time.perf_counter() - started) * 1000
     refused = workflow.status == WorkflowStatus.failed
     citations = workflow.lesson_plan.citations if workflow.lesson_plan else []
@@ -56,13 +57,13 @@ async def evaluate(case: EndToEndCase) -> dict:
     }
 
 
-async def run(dataset: Path) -> dict:
+async def run(dataset: Path, provider: ModelProvider | None = None, settings: Settings | None = None) -> dict:
     cases = [EndToEndCase.model_validate_json(line) for line in dataset.read_text(encoding="utf-8").splitlines() if line.strip()]
-    results = [await evaluate(case) for case in cases]
+    results = [await evaluate(case, provider, settings) for case in cases]
     latencies = sorted(item["latency_ms"] for item in results)
     retrieval_results = [result for result, case in zip(results, cases, strict=True) if case.expected_document_ids]
     return {
-        "evaluation_mode": "end_to_end_demo_provider",
+        "evaluation_mode": "end_to_end_real_model" if provider else "end_to_end_demo_provider",
         "cases": len(results),
         "pass_rate": sum(item["passed"] for item in results) / len(results) if results else 0.0,
         "retrieval_hit_rate": sum(item["retrieval_hit"] for item in retrieval_results) / len(retrieval_results) if retrieval_results else 0.0,
