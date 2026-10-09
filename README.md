@@ -4,6 +4,8 @@
 
 本仓库用于求职作品展示和技术交流。仓库只包含合成演示数据，不包含真实学生信息、私有教材或生产密钥。代码采用 MIT License；界面图片等视觉素材的使用边界见 [ASSET_NOTICE.md](ASSET_NOTICE.md)。
 
+![知识库备课页面](docs/images/knowledge-grounded-lesson.png)
+
 ## 核心能力
 
 - 教学知识库：解析 PDF、DOCX、PPTX、XLSX、TXT 和 Markdown，按用户与知识库隔离。
